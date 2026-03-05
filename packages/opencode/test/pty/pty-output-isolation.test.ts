@@ -98,7 +98,8 @@ describe("pty", () => {
     })
   })
 
-  test("treats in-place socket data mutation as the same connection", async () => {
+  // cat on Windows PTY doesn't echo stdin back the same way
+  test.skipIf(process.platform === "win32")("treats in-place socket data mutation as the same connection", async () => {
     await using dir = await tmpdir({ git: true })
 
     await Instance.provide({
