@@ -1,0 +1,83 @@
+name: build
+
+on:
+  push:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target_os: linux
+            target_arch: x64
+            artifact: opencode-linux-x64
+            ext: tar.gz
+          - os: ubuntu-latest
+            target_os: linux
+            target_arch: arm64
+            artifact: opencode-linux-arm64
+            ext: tar.gz
+          - os: macos-latest
+            target_os: darwin
+            target_arch: arm64
+            artifact: opencode-darwin-arm64
+            ext: zip
+          - os: macos-latest
+            target_os: darwin
+            target_arch: x64
+            artifact: opencode-darwin-x64
+            ext: zip
+          - os: windows-latest
+            target_os: win32
+            target_arch: x64
+            artifact: opencode-windows-x64
+            ext: zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dev-$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build single binary
+        run: bun run ./packages/opencode/script/build.ts --single
+        env:
+          OPENCODE_VERSION: ${{ steps.version.outputs.version }}
+          OPENCODE_CHANNEL: latest
+
+      - name: Package (Linux)
+        if: matrix.target_os == 'linux'
+        shell: bash
+        run: |
+          cd packages/opencode/dist/opencode-ai-${{ matrix.target_os }}-${{ matrix.target_arch }}/bin
+          tar -czf "$GITHUB_WORKSPACE/${{ matrix.artifact }}.tar.gz" *
+
+      - name: Package (macOS/Windows)
+        if: matrix.target_os != 'linux'
+        shell: bash
+        run: |
+          cd packages/opencode/dist/opencode-ai-${{ matrix.target_os }}-${{ matrix.target_arch }}/bin
+          zip -r "$GITHUB_WORKSPACE/${{ matrix.artifact }}.zip" *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.${{ matrix.ext }}
