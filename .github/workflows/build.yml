@@ -14,7 +14,7 @@ jobs:
             target_arch: x64
             artifact: opencode-linux-x64
             ext: tar.gz
-          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
             target_os: linux
             target_arch: arm64
             artifact: opencode-linux-arm64
@@ -24,7 +24,7 @@ jobs:
             target_arch: arm64
             artifact: opencode-darwin-arm64
             ext: zip
-          - os: macos-latest
+          - os: macos-13
             target_os: darwin
             target_arch: x64
             artifact: opencode-darwin-x64
