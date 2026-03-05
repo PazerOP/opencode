@@ -5,6 +5,7 @@ import { describeRoute, generateSpecs, validator, resolver, openAPIRouteHandler 
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { streamSSE } from "hono/streaming"
+import { proxy } from "hono/proxy"
 import { basicAuth } from "hono/basic-auth"
 import z from "zod"
 import { Provider } from "../provider/provider"
@@ -41,7 +42,6 @@ import { QuestionRoutes } from "./routes/question"
 import { PermissionRoutes } from "./routes/permission"
 import { GlobalRoutes } from "./routes/global"
 import { MDNS } from "./mdns"
-import { webAssets } from "./web-assets"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -559,32 +559,20 @@ export namespace Server {
           },
         )
         .all("/*", async (c) => {
-          const reqPath = c.req.path
+          const path = c.req.path
 
-          // Serve embedded web assets (built from packages/app at compile time)
-          const asset = webAssets[reqPath] || webAssets[reqPath + "/index.html"] || (reqPath === "/" ? webAssets["/index.html"] : undefined)
-          if (asset) {
-            const body = asset.binary ? Uint8Array.from(atob(asset.data), (ch) => ch.charCodeAt(0)) : asset.data
-            return c.newResponse(body, 200, {
-              "Content-Type": asset.mime,
-              "Cache-Control": reqPath.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
-              "Content-Security-Policy":
-                "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' data:",
-            })
-          }
-
-          // SPA fallback: serve index.html for unmatched routes
-          const index = webAssets["/index.html"]
-          if (index) {
-            return c.newResponse(index.data, 200, {
-              "Content-Type": index.mime,
-              "Cache-Control": "no-cache",
-              "Content-Security-Policy":
-                "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' data:",
-            })
-          }
-
-          return c.notFound()
+          const response = await proxy(`https://app.opencode.ai${path}`, {
+            ...c.req,
+            headers: {
+              ...c.req.raw.headers,
+              host: "app.opencode.ai",
+            },
+          })
+          response.headers.set(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' data:",
+          )
+          return response
         }) as unknown as Hono,
   )
 

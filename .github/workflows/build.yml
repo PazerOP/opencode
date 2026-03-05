@@ -2,6 +2,14 @@ name: build
 
 on:
   push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version override (e.g. 1.2.3). Defaults to tag or 0.0.0-dev."
+        required: false
+        type: string
 
 jobs:
   build:
@@ -50,7 +58,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
             echo "version=0.0.0-dev-$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
